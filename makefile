@@ -7,18 +7,31 @@ TEST = test
 BASE = .
 PRJS := $(BASE) $(TEST)
 
-OBJDIR = lib
-BIN_DIR = bin
+LIB_OSOA_BASE = libosoa-mt
+ifeq ($(MAKECMDGOALS), debug)
+LIB_OSOA_SUFFIX = -d.a
+CONFIG=debug
+else
+LIB_OSOA_SUFFIX = .a
+CONFIG=release
+endif
+OSOA_DIR=../osoa
+LIB_OSOA_DIR=$(OSOA_DIR)/lib/$(CONFIG)
+LIB_OSOA=$(LIB_OSOA_DIR)/$(LIB_OSOA_BASE)$(LIB_OSOA_SUFFIX)
+
+OBJ_BASE=lib
+OBJ_DIR=$(OBJ_BASE)/$(CONFIG)
+BIN_DIR=bin
 
 SRCS := $(foreach prj, $(PRJS), $(wildcard $(prj)/*.cc))
-OBJS := $(foreach prj, $(PRJS), $(addprefix $(OBJDIR)/, $(patsubst %.cc, %.o, $(subst $(prj)/,,$(wildcard $(prj)/*.cc)))))
+OBJS := $(foreach prj, $(PRJS), $(addprefix $(OBJ_DIR)/, $(patsubst %.cc, %.o, $(subst $(prj)/,,$(wildcard $(prj)/*.cc)))))
 
 VPATH := $(addsuffix :, $(PRJS))
 INC := $(addprefix -I, $(PRJS))
 INC += -I$(BOOST_DIR)
-INC += -I../osoa
+INC += -I$(OSOA_DIR)
 
-$(OBJDIR)/%.o : %.cc 
+$(OBJ_DIR)/%.o : %.cc 
 	$(COMPILE.cc) $(INC) $(OUTPUT_OPTION) $<
 
 all: $(BIN_DIR)/test
@@ -27,32 +40,32 @@ debug: CXXFLAGS += -DDEBUG -g -O0
 debug: $(BIN_DIR)/test
 
 ifneq ($(MAKECMDGOALS), debug)
-CXXFLAGS += -O3
+CXXFLAGS += -O3 -DNDEBUG
 endif
 
 ifeq ($(MAKECMDGOALS),clean)
 DEPS=
 else
 DEPS=$(OBJS:.o=.d)
-$(OBJDIR)/%.d : %.cc
+$(OBJ_DIR)/%.d : %.cc
 	$(CXX) $(CXXFLAGS) -MM $(INC) $< |sed -e '1 s/^/obj\//' > $@ 
 -include $(DEPS)
 endif
 
 $(BIN_DIR)/test: $(OBJS)
-	$(LINK.cc) $(OBJS) ../osoa/bin/libosoa_core-mt.a -dynamic -pthread -lboost_program_options -lboost_log_setup -lboost_log -lboost_system -lboost_thread -lboost_date_time -lboost_filesystem $(OUTPUT_OPTION)
+	$(LINK.cc) $(OBJS) $(LIB_OSOA) -dynamic -pthread -lboost_program_options -lboost_log_setup -lboost_log -lboost_system -lboost_thread -lboost_date_time -lboost_filesystem $(OUTPUT_OPTION)
 	ctags -R --c-kinds=+cdefglmnpstuvx --extra=+f
 	cscope -Rb
 
-$(OBJS) $(DEPS) : | $(OBJDIR) $(BIN_DIR)
+$(OBJS) $(DEPS) : | $(OBJ_DIR) $(BIN_DIR)
 
-$(OBJDIR):
-	mkdir $(OBJDIR)
+$(OBJ_DIR):
+	mkdir -p $(OBJ_DIR)
 
 $(BIN_DIR):
-	mkdir $(BIN_DIR)
+	mkdir -p $(BIN_DIR)
 
 .PHONY: clean
 clean :
 	rm -f numbers output.log
-	rm -rf $(OBJDIR) $(BIN_DIR) *.o *.d
+	rm -rf $(OBJ_BASE) $(BIN_DIR) *.o *.d
